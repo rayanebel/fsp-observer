@@ -3,6 +3,8 @@ from collections.abc import Sequence
 from enum import Enum
 from typing import Self
 
+from observer import metrics
+
 from attrs import frozen
 from py_flare_common.ftso.median import FtsoMedian
 
@@ -76,6 +78,7 @@ class MinimalConditions:
             return messages
 
         success_rate_bips = (total_hit * 10000) // total
+        metrics.FTSO_ANCHOR_FEEDS_SUCCESS_RATE.labels(identity_address=metrics._ia).set(success_rate_bips)
 
         if success_rate_bips < MinimalConditionsConfig.ftso_median_threshold_bips:
             messages.append(
@@ -163,6 +166,11 @@ class MinimalConditions:
     def calculate_fdc_participation(self, signatures: deque[bool]) -> Sequence[Message]:
         mb = Message.builder().add(network=self.network, protocol=Protocol.FDC)
         messages = []
+        if len(signatures) > 0:
+            metrics.FDC_PARTICIPATION_RATE.labels(identity_address=metrics._ia).set(
+                (signatures.count(True) * 10_000) // len(signatures)
+            )
+
         if (
             len(signatures) > 0
             and (signatures.count(True) * 10_000) // len(signatures)

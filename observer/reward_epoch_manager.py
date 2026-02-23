@@ -8,6 +8,7 @@ from web3 import AsyncWeb3
 
 from configuration.types import Configuration
 from observer.address import AddressChecker
+from observer import metrics
 
 from .message import Message, MessageLevel
 from .types import (
@@ -272,6 +273,12 @@ class RewardManager:
                     # we are looking for claims that are not initialised
                     # and with non-zero amount
                     if not state[0] and state[1] > 0:
+                        metrics.UNCLAIMED_REWARDS.labels(
+                            identity_address=metrics._ia,
+                            address=address,
+                            reward_epoch=str(re),
+                            claim_type=str(claim_type),
+                        ).set(state[1])
                         messages.append(
                             mb.build(
                                 MessageLevel.WARNING,
