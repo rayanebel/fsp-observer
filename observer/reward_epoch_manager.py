@@ -7,8 +7,8 @@ from py_flare_common.fsp.epoch.epoch import RewardEpoch
 from web3 import AsyncWeb3
 
 from configuration.types import Configuration
-from observer.address import AddressChecker
 from observer import metrics
+from observer.address import AddressChecker
 
 from .message import Message, MessageLevel
 from .types import (
@@ -210,7 +210,7 @@ class SigningPolicyBuilder:
             vrie = vries[spa[voter]]
 
             nodes = []
-            for n, w in zip(vrie.node_ids, vrie.node_weights):
+            for n, w in zip(vrie.node_ids, vrie.node_weights, strict=False):
                 nodes.append(Node(n, w))
 
             entity = Entity(

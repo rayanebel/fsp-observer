@@ -21,7 +21,9 @@ class AddressChecker:
 
         for name, addr in address_list:
             balance = await w.eth.get_balance(addr, "latest")
-            metrics.ADDRESS_BALANCE.labels(identity_address=metrics._ia, address=addr, role=name).set(balance)
+            metrics.ADDRESS_BALANCE.labels(
+                identity_address=metrics._ia, address=addr, role=name
+            ).set(balance)
             if balance < config.fee_threshold * 1e18:
                 level = MessageLevel.WARNING
                 if balance <= 5e18:

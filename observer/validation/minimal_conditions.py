@@ -3,12 +3,11 @@ from collections.abc import Sequence
 from enum import Enum
 from typing import Self
 
-from observer import metrics
-
 from attrs import frozen
 from py_flare_common.ftso.median import FtsoMedian
 
 from configuration.config import Protocol
+from observer import metrics
 from observer.message import Message, MessageLevel
 from observer.reward_epoch_manager import Entity, SigningPolicy
 
@@ -55,7 +54,7 @@ class MinimalConditions:
 
         total, total_hit = 0, 0
 
-        for median_list, vote_list in zip(medians, votes):
+        for median_list, vote_list in zip(medians, votes, strict=False):
             for i in range(len(median_list)):
                 total += 1
 
@@ -78,7 +77,9 @@ class MinimalConditions:
             return messages
 
         success_rate_bips = (total_hit * 10000) // total
-        metrics.FTSO_ANCHOR_FEEDS_SUCCESS_RATE.labels(identity_address=metrics._ia).set(success_rate_bips)
+        metrics.FTSO_ANCHOR_FEEDS_SUCCESS_RATE.labels(identity_address=metrics._ia).set(
+            success_rate_bips
+        )
 
         if success_rate_bips < MinimalConditionsConfig.ftso_median_threshold_bips:
             messages.append(

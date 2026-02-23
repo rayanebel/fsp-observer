@@ -36,7 +36,8 @@ REGISTERED_NEXT_EPOCH = Gauge(
 )
 
 # ---------------------------------------------------------------------------
-# Submissions — Counters per protocol (ftso, fdc) and phase (submit1, submit2, signatures)
+# Submissions — Counters per protocol (ftso, fdc) and phase
+# (submit1, submit2, signatures)
 # ---------------------------------------------------------------------------
 
 SUBMIT_OK = Counter(
@@ -107,7 +108,8 @@ ADDRESS_BALANCE = Gauge(
 
 REVEAL_OFFENCE = Counter(
     "flare_fsp_reveal_offence_total",
-    "Total rounds where a reveal offence occurred (missing reveal after commit, or hash mismatch)",
+    "Total rounds where a reveal offence occurred"
+    " (missing reveal after commit, or hash mismatch)",
     ["identity_address", "protocol"],
 )
 

@@ -9,6 +9,7 @@ from py_flare_common.fsp.messaging.types import (
 )
 
 from observer import metrics
+
 from ..message import Message, MessageBuilder, MessageLevel
 from ..reward_epoch_manager import Entity
 from ..types import ProtocolMessageRelayed
@@ -126,7 +127,7 @@ def check_submit_2(
             )
         else:
             for i, (r, bit, cbit) in enumerate(
-                zip(sorted_requests, bit_vector, consensus_bitvote)
+                zip(sorted_requests, bit_vector, consensus_bitvote, strict=False)
             ):
                 idx = n_requests - 1 - i
                 at = r.attestation_type
@@ -216,11 +217,13 @@ def check_submit_signatures(
 
         submit_2_correct_length = len(bit_vector) == n_requests
         submit_2_dominates = all(
-            b or not cb for b, cb in zip(bit_vector, consensus_bitvote)
+            b or not cb for b, cb in zip(bit_vector, consensus_bitvote, strict=False)
         )
 
         if submit_2_correct_length and submit_2_dominates:
-            metrics.REVEAL_OFFENCE.labels(identity_address=metrics._ia, protocol="fdc").inc()
+            metrics.REVEAL_OFFENCE.labels(
+                identity_address=metrics._ia, protocol="fdc"
+            ).inc()
             if not early:
                 issues.append(
                     mb.build(
@@ -240,7 +243,9 @@ def check_submit_signatures(
         )
 
         if submit_signatures.wtx_data.timestamp > deadline:
-            metrics.SIGNATURE_GRACE_PERIOD_MISSED.labels(identity_address=metrics._ia, protocol="fdc").inc()
+            metrics.SIGNATURE_GRACE_PERIOD_MISSED.labels(
+                identity_address=metrics._ia, protocol="fdc"
+            ).inc()
             issues.append(
                 mb.build(
                     MessageLevel.WARNING,
@@ -260,7 +265,9 @@ def check_submit_signatures(
         ).to_checksum_address()
 
         if addr != entity.signing_policy_address:
-            metrics.SIGNATURE_MISMATCH.labels(identity_address=metrics._ia, protocol="fdc").inc()
+            metrics.SIGNATURE_MISMATCH.labels(
+                identity_address=metrics._ia, protocol="fdc"
+            ).inc()
             issues.append(
                 mb.build(
                     MessageLevel.ERROR,

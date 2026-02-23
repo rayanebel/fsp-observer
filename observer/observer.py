@@ -10,7 +10,6 @@ from typing import Any, Self
 
 import requests
 from eth_abi.abi import encode
-from web3.exceptions import Web3RPCError
 from eth_account._utils.signing import to_standard_v
 from eth_account.messages import _hash_eip191_message, encode_defunct
 from eth_keys.datatypes import Signature as EthSignature
@@ -26,6 +25,7 @@ from py_flare_common.fsp.messaging.types import Signature as SSignature
 from py_flare_common.ftso.median import FtsoMedian
 from web3 import AsyncWeb3
 from web3._utils.events import get_event_data
+from web3.exceptions import Web3RPCError
 from web3.middleware import ExtraDataToPOAMiddleware
 from web3.types import TxData
 
@@ -341,7 +341,9 @@ async def cron(
     return list(chain.from_iterable(results))
 
 
-def _record_submit_metrics(protocol: str, extracted, *, include_submit1: bool = True) -> None:
+def _record_submit_metrics(
+    protocol: str, extracted, *, include_submit1: bool = True
+) -> None:
     phases = []
     if include_submit1:
         phases.append(("submit1", extracted.submit_1))
@@ -350,13 +352,21 @@ def _record_submit_metrics(protocol: str, extracted, *, include_submit1: bool = 
 
     for phase, ext in phases:
         if ext.extracted is not None:
-            metrics.SUBMIT_OK.labels(identity_address=metrics._ia, protocol=protocol, phase=phase).inc()
+            metrics.SUBMIT_OK.labels(
+                identity_address=metrics._ia, protocol=protocol, phase=phase
+            ).inc()
         elif ext.late:
-            metrics.SUBMIT_LATE.labels(identity_address=metrics._ia, protocol=protocol, phase=phase).inc()
+            metrics.SUBMIT_LATE.labels(
+                identity_address=metrics._ia, protocol=protocol, phase=phase
+            ).inc()
         elif ext.early:
-            metrics.SUBMIT_EARLY.labels(identity_address=metrics._ia, protocol=protocol, phase=phase).inc()
+            metrics.SUBMIT_EARLY.labels(
+                identity_address=metrics._ia, protocol=protocol, phase=phase
+            ).inc()
         else:
-            metrics.SUBMIT_MISSING.labels(identity_address=metrics._ia, protocol=protocol, phase=phase).inc()
+            metrics.SUBMIT_MISSING.labels(
+                identity_address=metrics._ia, protocol=protocol, phase=phase
+            ).inc()
 
 
 async def observer_loop(config: Configuration) -> None:
@@ -364,7 +374,9 @@ async def observer_loop(config: Configuration) -> None:
 
     if config.metrics.enabled:
         metrics.start_metrics_server(config.metrics.port, config.metrics.address)
-        LOGGER.info(f"Metrics server started on {config.metrics.address}:{config.metrics.port}")
+        LOGGER.info(
+            f"Metrics server started on {config.metrics.address}:{config.metrics.port}"
+        )
 
     LOGGER.info(f"Connecting to RPC: {config.rpc_url}")
 
@@ -395,14 +407,19 @@ async def observer_loop(config: Configuration) -> None:
     metrics.REGISTERED_CURRENT_EPOCH.labels(identity_address=tia).set(0)
     metrics.REGISTERED_NEXT_EPOCH.labels(identity_address=tia).set(0)
 
-    LOGGER.info(f"Block #{block['number']} | reward_epoch={reward_epoch.id} | voting_epoch={voting_epoch.id}")
+    LOGGER.info(
+        f"Block #{block['number']} | reward_epoch={reward_epoch.id}"
+        f" | voting_epoch={voting_epoch.id}"
+    )
 
     # we first fill signing policy for current reward epoch
 
     # voter registration period is 2h before the reward epoch and lasts 30min
     # find block that has timestamp approx. 2h30min before the reward epoch
     # and block that has timestamp approx. 1h before the reward epoch
-    LOGGER.debug(f"Searching voter registration blocks for reward epoch {reward_epoch.id}...")
+    LOGGER.debug(
+        f"Searching voter registration blocks for reward epoch {reward_epoch.id}..."
+    )
     lower_block_id, end_block_id = await find_voter_registration_blocks(
         w, block["number"], reward_epoch
     )
@@ -418,24 +435,38 @@ async def observer_loop(config: Configuration) -> None:
     )
 
     nb_entities = len(signing_policy.entity_mapper.by_identity_address)
-    LOGGER.info(f"Signing policy loaded: reward_epoch={reward_epoch.id} | entities={nb_entities} | starts_at_round={signing_policy.start_voting_round}")
+    LOGGER.info(
+        f"Signing policy loaded: reward_epoch={reward_epoch.id}"
+        f" | entities={nb_entities}"
+        f" | starts_at_round={signing_policy.start_voting_round}"
+    )
 
     spb = SigningPolicy.builder().for_epoch(reward_epoch.next)
 
     block_production = await get_block_production(w)
     maximum_exponent = calculate_maximum_exponent(block_production, config)
-    LOGGER.debug(f"Block production: {block_production:.3f}s/block | max_exponent={maximum_exponent}")
+    LOGGER.debug(
+        f"Block production: {block_production:.3f}s/block"
+        f" | max_exponent={maximum_exponent}"
+    )
 
     if tia in signing_policy.entity_mapper.by_identity_address:
         _e = signing_policy.entity_mapper.by_identity_address[tia]
         node_ids_repr = [node_id_to_representation(n.node_id) for n in _e.nodes]
-        LOGGER.info(f"Entity found in signing policy: submit={_e.submit_address} | nodes={node_ids_repr}")
+        LOGGER.info(
+            f"Entity found in signing policy: submit={_e.submit_address}"
+            f" | nodes={node_ids_repr}"
+        )
         metrics.REGISTERED_CURRENT_EPOCH.labels(identity_address=tia).set(1)
     else:
         LOGGER.warning(f"Entity {tia} NOT found in current signing policy!")
 
     _init_entity = signing_policy.entity_mapper.by_identity_address.get(tia)
-    _init_node_ids = [node_id_to_representation(n.node_id) for n in _init_entity.nodes] if _init_entity else []
+    _init_node_ids = (
+        [node_id_to_representation(n.node_id) for n in _init_entity.nodes]
+        if _init_entity
+        else []
+    )
     metrics.initialize_labels(node_ids=_init_node_ids)
 
     # preliminary balance check to initialize ADDRESS_BALANCE metric
@@ -444,7 +475,9 @@ async def observer_loop(config: Configuration) -> None:
 
     # preliminary unclaimed rewards check at startup
     if _init_entity:
-        _unclaimed_init = await RewardManager().get_unclaimed_rewards(_init_entity, config, w)
+        _unclaimed_init = await RewardManager().get_unclaimed_rewards(
+            _init_entity, config, w
+        )
         for m in _unclaimed_init:
             log_message(config, m)
 
@@ -461,7 +494,10 @@ async def observer_loop(config: Configuration) -> None:
 
     cron_time = time.time()
 
-    LOGGER.info(f"Observer ready: identity={tia} | reward_epoch={reward_epoch.id} | voting_epoch={voting_epoch.id}")
+    LOGGER.info(
+        f"Observer ready: identity={tia} | reward_epoch={reward_epoch.id}"
+        f" | voting_epoch={voting_epoch.id}"
+    )
 
     # wait until next voting epoch
     block_number = block["number"]
@@ -548,7 +584,6 @@ async def observer_loop(config: Configuration) -> None:
     messages: list[Message] = []
     min_cond_messages: list[Message] = []
 
-
     while True:
         try:
             latest_block = await w.eth.block_number
@@ -574,7 +609,10 @@ async def observer_loop(config: Configuration) -> None:
             voting_epoch = vef.from_timestamp(block_ts)
             metrics.VOTING_ROUND.set(voting_epoch.id)
 
-            LOGGER.debug(f"Block #{block} | voting_epoch={voting_epoch.id} | txs={len(block_data['transactions'])}")
+            LOGGER.debug(
+                f"Block #{block} | voting_epoch={voting_epoch.id}"
+                f" | txs={len(block_data['transactions'])}"
+            )
 
             if (
                 spb.signing_policy_initialized is not None
@@ -590,11 +628,22 @@ async def observer_loop(config: Configuration) -> None:
                 signing_policy = spb.build()
                 spm.current_policy = signing_policy
                 metrics.REWARD_EPOCH.set(signing_policy.reward_epoch.id)
-                metrics.REGISTERED_CURRENT_EPOCH.labels(identity_address=metrics._ia).set(1 if tia in signing_policy.entity_mapper.by_identity_address else 0)
-                metrics.REGISTERED_NEXT_EPOCH.labels(identity_address=metrics._ia).set(0)
+                metrics.REGISTERED_CURRENT_EPOCH.labels(
+                    identity_address=metrics._ia
+                ).set(
+                    1 if tia in signing_policy.entity_mapper.by_identity_address else 0
+                )
+                metrics.REGISTERED_NEXT_EPOCH.labels(identity_address=metrics._ia).set(
+                    0
+                )
 
                 nb_new = len(signing_policy.entity_mapper.by_identity_address)
-                LOGGER.info(f"Epoch transition: {old_epoch_id} → {signing_policy.reward_epoch.id} | entities={nb_new} | starts_at_round={signing_policy.start_voting_round}")
+                LOGGER.info(
+                    f"Epoch transition: {old_epoch_id} →"
+                    f" {signing_policy.reward_epoch.id}"
+                    f" | entities={nb_new}"
+                    f" | starts_at_round={signing_policy.start_voting_round}"
+                )
 
                 spb = SigningPolicy.builder().for_epoch(
                     signing_policy.reward_epoch.next
@@ -642,7 +691,9 @@ async def observer_loop(config: Configuration) -> None:
                     }
                 )
             except Web3RPCError as e:
-                LOGGER.warning(f"[BLOCK #{block}] RPC error fetching logs, skipping block: {e}")
+                LOGGER.warning(
+                    f"[BLOCK #{block}] RPC error fetching logs, skipping block: {e}"
+                )
                 continue
             block_logs.extend(_relay_patch_sps)
 
@@ -659,8 +710,13 @@ async def observer_loop(config: Configuration) -> None:
                             e = ProtocolMessageRelayed.from_dict(
                                 data["args"], block_data
                             )
-                            protocol_name = {100: "FTSO", 200: "FDC"}.get(e.protocol_id, f"UNKNOWN({e.protocol_id})")
-                            LOGGER.debug(f"ProtocolMessageRelayed: protocol={protocol_name} | voting_round={e.voting_round_id}")
+                            protocol_name = {100: "FTSO", 200: "FDC"}.get(
+                                e.protocol_id, f"UNKNOWN({e.protocol_id})"
+                            )
+                            LOGGER.debug(
+                                f"ProtocolMessageRelayed: protocol={protocol_name}"
+                                f" | voting_round={e.voting_round_id}"
+                            )
                             voting_round = vrm.get(ve(e.voting_round_id))
                             if e.protocol_id == 100:
                                 voting_round.ftso.finalization = e
@@ -676,19 +732,26 @@ async def observer_loop(config: Configuration) -> None:
                             assert "to" in tx
                             assert "from" in tx
                             if tx["from"] == entity.identity_address:
-                                event_messages.extend(
-                                    cm.check_relay_address(tx["to"])
-                                )
+                                event_messages.extend(cm.check_relay_address(tx["to"]))
 
                         case "AttestationRequest":
                             e = AttestationRequest.from_dict(data, voting_epoch)
                             vrm.get(e.voting_epoch_id).fdc.requests.agg.append(e)
-                            LOGGER.debug(f"AttestationRequest: voting_epoch={e.voting_epoch_id.id} | type={e.attestation_type}")
+                            LOGGER.debug(
+                                f"AttestationRequest:"
+                                f" voting_epoch={e.voting_epoch_id.id}"
+                                f" | type={e.attestation_type}"
+                            )
 
                         case "SigningPolicyInitialized":
                             e = SigningPolicyInitialized.from_dict(data["args"])
                             spb.add(e)
-                            LOGGER.info(f"SigningPolicyInitialized: reward_epoch={e.reward_epoch_id} | starts_at_round={e.start_voting_round_id} | voters={len(e.voters)}")
+                            LOGGER.info(
+                                f"SigningPolicyInitialized:"
+                                f" reward_epoch={e.reward_epoch_id}"
+                                f" | starts_at_round={e.start_voting_round_id}"
+                                f" | voters={len(e.voters)}"
+                            )
 
                         case "VoterRegistered":
                             e = VoterRegistered.from_dict(data["args"])
@@ -703,23 +766,38 @@ async def observer_loop(config: Configuration) -> None:
                                 == e.signing_policy_address
                             ):
                                 registered = True
-                                metrics.REGISTERED_NEXT_EPOCH.labels(identity_address=metrics._ia).set(1)
-                                LOGGER.info(f"VoterRegistered: our entity registered for epoch {e.reward_epoch_id}")
+                                metrics.REGISTERED_NEXT_EPOCH.labels(
+                                    identity_address=metrics._ia
+                                ).set(1)
+                                LOGGER.info(
+                                    f"VoterRegistered: our entity registered"
+                                    f" for epoch {e.reward_epoch_id}"
+                                )
 
                         case "VoterRemoved":
                             e = VoterRemoved.from_dict(data["args"])
                             spb.add(e)
-                            LOGGER.debug(f"VoterRemoved: voter={e.voter} | epoch={e.reward_epoch_id}")
+                            LOGGER.debug(
+                                f"VoterRemoved: voter={e.voter}"
+                                f" | epoch={e.reward_epoch_id}"
+                            )
 
                         case "VoterRegistrationInfo":
                             e = VoterRegistrationInfo.from_dict(data["args"])
                             spb.add(e)
-                            LOGGER.debug(f"VoterRegistrationInfo: voter={e.voter} | nodes={len(e.node_ids)}")
+                            LOGGER.debug(
+                                f"VoterRegistrationInfo: voter={e.voter}"
+                                f" | nodes={len(e.node_ids)}"
+                            )
 
                         case "VotePowerBlockSelected":
                             e = VotePowerBlockSelected.from_dict(data["args"])
                             spb.add(e)
-                            LOGGER.info(f"VotePowerBlockSelected: epoch={e.reward_epoch_id} | vote_power_block=#{e.vote_power_block} | registration window open")
+                            LOGGER.info(
+                                f"VotePowerBlockSelected: epoch={e.reward_epoch_id}"
+                                f" | vote_power_block=#{e.vote_power_block}"
+                                f" | registration window open"
+                            )
                             if registered:
                                 continue
                             voter_registration_started = True
@@ -728,7 +806,10 @@ async def observer_loop(config: Configuration) -> None:
                         case "RandomAcquisitionStarted":
                             e = RandomAcquisitionStarted.from_dict(data["args"])
                             spb.add(e)
-                            LOGGER.debug(f"RandomAcquisitionStarted: reward_epoch={e.reward_epoch_id}")
+                            LOGGER.debug(
+                                f"RandomAcquisitionStarted:"
+                                f" reward_epoch={e.reward_epoch_id}"
+                            )
 
                         case "FastUpdateFeedsSubmitted":
                             e = FastUpdateFeedsSubmitted.from_dict(data)
@@ -747,14 +828,21 @@ async def observer_loop(config: Configuration) -> None:
                                     update_array,
                                 )
                                 fum.last_update_block = int(data["blockNumber"])
-                                LOGGER.info(f"FastUpdateFeedsSubmitted: our entity at block #{fum.last_update_block} | feeds={len(update_array)}")
+                                LOGGER.info(
+                                    f"FastUpdateFeedsSubmitted:"
+                                    f" our entity at block #{fum.last_update_block}"
+                                    f" | feeds={len(update_array)}"
+                                )
                                 # We check update array when we receive a new one
                                 event_messages.extend(
                                     fum.check_update_length(nr_of_feeds, fast_update_re)
                                 )
                                 fum.address_list.add(address)
                             else:
-                                LOGGER.debug(f"FastUpdateFeedsSubmitted: from={address} | feeds={len(update_array)}")
+                                LOGGER.debug(
+                                    f"FastUpdateFeedsSubmitted: from={address}"
+                                    f" | feeds={len(update_array)}"
+                                )
 
                         case "FastUpdateFeeds":
                             e = FastUpdateFeeds.from_dict(data)
@@ -764,7 +852,10 @@ async def observer_loop(config: Configuration) -> None:
                                     vef.make_epoch(e.voting_round_id)
                                 ).id,
                             )
-                            LOGGER.debug(f"FastUpdateFeeds: round={e.voting_round_id} | feeds={nr_of_feeds}")
+                            LOGGER.debug(
+                                f"FastUpdateFeeds: round={e.voting_round_id}"
+                                f" | feeds={nr_of_feeds}"
+                            )
 
                         case "VoterPreRegistered":
                             e = VoterPreRegistered.from_dict(data)
@@ -773,8 +864,13 @@ async def observer_loop(config: Configuration) -> None:
                             ]
                             if tia == e.voter:
                                 registered = True
-                                metrics.REGISTERED_NEXT_EPOCH.labels(identity_address=metrics._ia).set(1)
-                                LOGGER.info(f"VoterPreRegistered: our entity pre-registered for epoch {e.reward_epoch_id}")
+                                metrics.REGISTERED_NEXT_EPOCH.labels(
+                                    identity_address=metrics._ia
+                                ).set(1)
+                                LOGGER.info(
+                                    f"VoterPreRegistered: our entity pre-registered"
+                                    f" for epoch {e.reward_epoch_id}"
+                                )
 
             _known_tx_count = 0
             for tx in block_data["transactions"]:
@@ -802,7 +898,11 @@ async def observer_loop(config: Configuration) -> None:
                                 parsed = parse_submit1_tx(input)
                                 if parsed.ftso is not None:
                                     if is_ours:
-                                        LOGGER.info(f"submit1 FTSO: our entity at block #{block} | round={parsed.ftso.voting_round_id}")
+                                        LOGGER.info(
+                                            f"submit1 FTSO:"
+                                            f" our entity at block #{block}"
+                                            f" | round={parsed.ftso.voting_round_id}"
+                                        )
                                     vrm.get(
                                         ve(parsed.ftso.voting_round_id)
                                     ).ftso.insert_submit_1(entity, parsed.ftso, wtx)
@@ -811,32 +911,47 @@ async def observer_loop(config: Configuration) -> None:
                                         ve(parsed.fdc.voting_round_id)
                                     ).fdc.insert_submit_1(entity, parsed.fdc, wtx)
                             except Exception as exc:
-                                LOGGER.debug(f"submit1 parse error from {sender_address}: {exc}")
+                                LOGGER.debug(
+                                    f"submit1 parse error from {sender_address}: {exc}"
+                                )
 
                         case "submit2":
                             try:
                                 parsed = parse_submit2_tx(input)
                                 if parsed.ftso is not None:
                                     if is_ours:
-                                        LOGGER.info(f"submit2 FTSO: our entity at block #{block} | round={parsed.ftso.voting_round_id}")
+                                        LOGGER.info(
+                                            f"submit2 FTSO:"
+                                            f" our entity at block #{block}"
+                                            f" | round={parsed.ftso.voting_round_id}"
+                                        )
                                     vrm.get(
                                         ve(parsed.ftso.voting_round_id)
                                     ).ftso.insert_submit_2(entity, parsed.ftso, wtx)
                                 if parsed.fdc is not None:
                                     if is_ours:
-                                        LOGGER.info(f"submit2 FDC: our entity at block #{block} | round={parsed.fdc.voting_round_id}")
+                                        LOGGER.info(
+                                            f"submit2 FDC: our entity at block #{block}"
+                                            f" | round={parsed.fdc.voting_round_id}"
+                                        )
                                     vrm.get(
                                         ve(parsed.fdc.voting_round_id)
                                     ).fdc.insert_submit_2(entity, parsed.fdc, wtx)
                             except Exception as exc:
-                                LOGGER.debug(f"submit2 parse error from {sender_address}: {exc}")
+                                LOGGER.debug(
+                                    f"submit2 parse error from {sender_address}: {exc}"
+                                )
 
                         case "submitSignatures":
                             try:
                                 parsed = parse_submit_signature_tx(input)
                                 if parsed.ftso is not None:
                                     if is_ours:
-                                        LOGGER.info(f"submitSignatures FTSO: round={parsed.ftso.voting_round_id} | block=#{block}")
+                                        LOGGER.info(
+                                            f"submitSignatures FTSO:"
+                                            f" round={parsed.ftso.voting_round_id}"
+                                            f" | block=#{block}"
+                                        )
                                     vrm.get(
                                         ve(parsed.ftso.voting_round_id)
                                     ).ftso.insert_submit_signatures(
@@ -844,7 +959,11 @@ async def observer_loop(config: Configuration) -> None:
                                     )
                                 if parsed.fdc is not None:
                                     if is_ours:
-                                        LOGGER.info(f"submitSignatures FDC: our entity at block #{block} | round={parsed.fdc.voting_round_id}")
+                                        LOGGER.info(
+                                            f"submitSignatures FDC:"
+                                            f" our entity at block #{block}"
+                                            f" | round={parsed.fdc.voting_round_id}"
+                                        )
                                     vr = vrm.get(ve(parsed.fdc.voting_round_id))
                                     vr.fdc.insert_submit_signatures(
                                         entity, parsed.fdc, wtx
@@ -857,7 +976,10 @@ async def observer_loop(config: Configuration) -> None:
                                     ] += 1
 
                             except Exception as exc:
-                                LOGGER.debug(f"submitSignatures parse error from {sender_address}: {exc}")
+                                LOGGER.debug(
+                                    f"submitSignatures parse error from"
+                                    f" {sender_address}: {exc}"
+                                )
 
             messages.clear()
             messages.extend(tx_messages)
@@ -866,7 +988,9 @@ async def observer_loop(config: Configuration) -> None:
 
             # perform all minimal condition checks here
             if int(time.time() - last_minimal_conditions_check) > 60:
-                metrics.FAST_UPDATE_BLOCKS_SINCE_LAST.labels(identity_address=metrics._ia).set(block - fum.last_update_block)
+                metrics.FAST_UPDATE_BLOCKS_SINCE_LAST.labels(
+                    identity_address=metrics._ia
+                ).set(block - fum.last_update_block)
                 min_cond_messages.clear()
 
                 min_cond_messages.extend(
@@ -933,10 +1057,13 @@ async def observer_loop(config: Configuration) -> None:
                         connected = node["connected"]
                         node_connections[node["nodeID"]].append(connected)
                         history = node_connections[node["nodeID"]]
-                        metrics.NODE_UPTIME_RATIO.labels(identity_address=metrics._ia, node_id=node["nodeID"]).set(
-                            sum(history) / len(history) if history else 0
+                        metrics.NODE_UPTIME_RATIO.labels(
+                            identity_address=metrics._ia, node_id=node["nodeID"]
+                        ).set(sum(history) / len(history) if history else 0)
+                        LOGGER.debug(
+                            f"Node {node['nodeID']}: connected={connected}"
+                            f" | uptime={sum(history) / len(history) * 100:.1f}%"
                         )
-                        LOGGER.debug(f"Node {node['nodeID']}: connected={connected} | uptime={sum(history) / len(history) * 100:.1f}%")
                 except requests.RequestException as e:
                     LOGGER.warning(f"P-Chain API error: {e}")
                 last_ping = int(time.time())
@@ -967,17 +1094,30 @@ async def observer_loop(config: Configuration) -> None:
                         entity_votes.append([])
             for r in rounds:
                 ftso_fin = "YES" if r.ftso.finalization else "NO"
-                fdc_fin  = "YES" if r.fdc.finalization else "NO"
+                fdc_fin = "YES" if r.fdc.finalization else "NO"
                 nb_medians = len(r.ftso.medians) if r.ftso.medians else 0
                 validation_msgs = validate_round(r, signing_policy, entity, config)
                 if validation_msgs:
-                    LOGGER.warning(f"Round {r.voting_epoch.id}: {len(validation_msgs)} validation issue(s) | FTSO={ftso_fin} FDC={fdc_fin}")
+                    LOGGER.warning(
+                        f"Round {r.voting_epoch.id}:"
+                        f" {len(validation_msgs)} validation issue(s)"
+                        f" | FTSO={ftso_fin} FDC={fdc_fin}"
+                    )
                 else:
-                    LOGGER.info(f"Round {r.voting_epoch.id}: OK | FTSO={ftso_fin} FDC={fdc_fin} medians={nb_medians}")
+                    LOGGER.info(
+                        f"Round {r.voting_epoch.id}: OK | FTSO={ftso_fin} FDC={fdc_fin}"
+                        f" medians={nb_medians}"
+                    )
                 messages.extend(validation_msgs)
 
-                _record_submit_metrics("ftso", extract_round_for_entity(r.ftso, entity, r.voting_epoch))
-                _record_submit_metrics("fdc", extract_round_for_entity(r.fdc, entity, r.voting_epoch), include_submit1=False)
+                _record_submit_metrics(
+                    "ftso", extract_round_for_entity(r.ftso, entity, r.voting_epoch)
+                )
+                _record_submit_metrics(
+                    "fdc",
+                    extract_round_for_entity(r.fdc, entity, r.voting_epoch),
+                    include_submit1=False,
+                )
 
             # prepare new data for FDC participation
             signatures.extend([round.submitted_signatures for round in rounds])
@@ -992,17 +1132,16 @@ async def observer_loop(config: Configuration) -> None:
                 and not registered
             ):
                 elapsed = int(time.time() - voter_registration_started_ts)
-                LOGGER.warning(f"Not registered after {elapsed // 60}m{elapsed % 60}s | identity={tia}")
+                LOGGER.warning(
+                    f"Not registered after {elapsed // 60}m{elapsed % 60}s"
+                    f" | identity={tia}"
+                )
                 mb = Message.builder().add(network=config.chain_id)
                 if elapsed > 60:
                     level = MessageLevel.CRITICAL
                     message = mb.build(
                         level,
-                        (
-                            "Voter not registered after "
-                            f"{elapsed // 60}"
-                            " minutes"
-                        ),
+                        (f"Voter not registered after {elapsed // 60} minutes"),
                     )
                     messages.append(message)
 

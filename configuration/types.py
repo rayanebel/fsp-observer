@@ -1,6 +1,7 @@
 import json
 import re
-from typing import Callable, Self
+from collections.abc import Callable
+from typing import Self
 
 from attrs import field, frozen
 from eth_typing import ABI, ABIEvent, ABIFunction, ChecksumAddress
